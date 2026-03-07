@@ -1,0 +1,170 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id           String         @id @default(cuid())
+  name         String
+  email        String         @unique
+  passwordHash String
+  role         Role           @default(CUSTOMER)
+  cart         Cart?
+  orders       Order[]
+  wishlist     WishlistItem[]
+  addresses    Address[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  title          String
+  description    String
+  sku            String        @unique
+  price          Decimal       @db.Decimal(10, 2)
+  compareAtPrice Decimal?      @db.Decimal(10, 2)
+  stock          Int
+  isActive       Boolean       @default(true)
+  categoryId     String
+  category       Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  images         ProductImage[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  wishlistedBy   WishlistItem[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([categoryId])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  path      String
+  alt       String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  cartId     String
+  productId  String
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status     OrderStatus @default(PENDING)
+  subtotal   Decimal     @db.Decimal(10, 2)
+  tax        Decimal     @db.Decimal(10, 2)
+  shipping   Decimal     @db.Decimal(10, 2)
+  total      Decimal     @db.Decimal(10, 2)
+  address    String
+  city       String
+  state      String
+  postalCode String
+  country    String
+  items      OrderItem[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  productId     String
+  titleSnapshot String
+  unitPrice     Decimal  @db.Decimal(10, 2)
+  quantity      Int
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdAt     DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  postalCode String
+  country    String
+  createdAt  DateTime @default(now())
+}
