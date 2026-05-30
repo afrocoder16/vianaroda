@@ -26,18 +26,53 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum PaymentMethod {
+  STRIPE_CARD
+  STRIPE_APPLE_PAY
+  STRIPE_GOOGLE_PAY
+  PAYPAL
+}
+
+enum SupplierOrderStatus {
+  DRAFT
+  FORWARDED
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  REFUND_REQUESTED
+  REFUNDED
+}
+
 model User {
-  id           String         @id @default(cuid())
-  name         String
-  email        String         @unique
-  passwordHash String
-  role         Role           @default(CUSTOMER)
-  cart         Cart?
-  orders       Order[]
-  wishlist     WishlistItem[]
-  addresses    Address[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id              String                 @id @default(cuid())
+  name            String
+  email           String                 @unique
+  passwordHash    String
+  role            Role                   @default(CUSTOMER)
+  cart            Cart?
+  orders          Order[]
+  wishlist        WishlistItem[]
+  addresses       Address[]
+  paymentMethods  SavedPaymentMethod[]
+  reviews         Review[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
+model Supplier {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  contactEmail   String
+  contactPhone   String?
+  shippingWindow String   @default("Delivered in 5-10 days")
+  leadTimeMin    Int      @default(5)
+  leadTimeMax    Int      @default(10)
+  notes          String?
+  isActive       Boolean  @default(true)
+  products       Product[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Category {
@@ -55,20 +90,37 @@ model Product {
   title          String
   description    String
   sku            String        @unique
+  supplierSku    String?
   price          Decimal       @db.Decimal(10, 2)
+  supplierCost   Decimal?      @db.Decimal(10, 2)
+  markupPercent  Int           @default(35)
   compareAtPrice Decimal?      @db.Decimal(10, 2)
   stock          Int
   isActive       Boolean       @default(true)
+  averageRating  Decimal       @default(4.5) @db.Decimal(3, 2)
+  reviewCount    Int           @default(0)
+  unitsSold      Int           @default(0)
+  shippingLeadMin Int          @default(5)
+  shippingLeadMax Int          @default(10)
+  shippingLabel  String        @default("Delivered in 5-10 days")
+  fastShippingEligible Boolean @default(false)
+  isBestSeller   Boolean       @default(false)
+  isTrending     Boolean       @default(false)
+  variantSummary String?
   categoryId     String
+  supplierId     String?
   category       Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  supplier       Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   images         ProductImage[]
   cartItems      CartItem[]
   orderItems     OrderItem[]
   wishlistedBy   WishlistItem[]
+  reviews        Review[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
   @@index([categoryId])
+  @@index([supplierId])
 }
 
 model ProductImage {
@@ -108,37 +160,53 @@ model CartItem {
 }
 
 model Order {
-  id         String      @id @default(cuid())
-  userId     String
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status     OrderStatus @default(PENDING)
-  subtotal   Decimal     @db.Decimal(10, 2)
-  tax        Decimal     @db.Decimal(10, 2)
-  shipping   Decimal     @db.Decimal(10, 2)
-  total      Decimal     @db.Decimal(10, 2)
-  address    String
-  city       String
-  state      String
-  postalCode String
-  country    String
-  items      OrderItem[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id                  String              @id @default(cuid())
+  userId              String
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status              OrderStatus         @default(PENDING)
+  supplierOrderStatus SupplierOrderStatus @default(DRAFT)
+  paymentMethod       PaymentMethod       @default(STRIPE_CARD)
+  subtotal            Decimal             @db.Decimal(10, 2)
+  tax                 Decimal             @db.Decimal(10, 2)
+  shipping            Decimal             @db.Decimal(10, 2)
+  total               Decimal             @db.Decimal(10, 2)
+  customerName        String
+  email               String
+  phone               String
+  address             String
+  city                String
+  state               String
+  postalCode          String
+  country             String
+  trackingNumber      String?
+  trackingUrl         String?
+  supplierSummary     String?
+  supplierReference   String?
+  fulfillmentNotes    String?
+  estimatedDelivery   String?
+  items               OrderItem[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@index([userId])
   @@index([status])
+  @@index([supplierOrderStatus])
 }
 
 model OrderItem {
-  id            String   @id @default(cuid())
-  orderId       String
-  productId     String
-  titleSnapshot String
-  unitPrice     Decimal  @db.Decimal(10, 2)
-  quantity      Int
-  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product       Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
-  createdAt     DateTime @default(now())
+  id                 String   @id @default(cuid())
+  orderId            String
+  productId          String
+  titleSnapshot      String
+  supplierName       String?
+  supplierSku        String?
+  variantSnapshot    String?
+  shippingLabel      String?
+  unitPrice          Decimal  @db.Decimal(10, 2)
+  quantity           Int
+  order              Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product            Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdAt          DateTime @default(now())
 
   @@index([orderId])
   @@index([productId])
@@ -160,6 +228,8 @@ model Address {
   id         String   @id @default(cuid())
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label      String?
+  phone      String?
   line1      String
   line2      String?
   city       String
@@ -167,4 +237,33 @@ model Address {
   postalCode String
   country    String
   createdAt  DateTime @default(now())
+}
+
+model SavedPaymentMethod {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider  PaymentMethod
+  label     String
+  last4     String?
+  isDefault Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  @@index([userId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String?
+  author    String
+  rating    Int
+  title     String?
+  body      String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([userId])
 }
