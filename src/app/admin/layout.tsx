@@ -34,6 +34,12 @@ export default async function AdminLayout({
           >
             Orders
           </Link>
+          <Link
+            href="/admin/suppliers"
+            className="rounded-md px-2 py-1 hover:bg-[#f4ecde]"
+          >
+            Suppliers
+          </Link>
         </nav>
       </aside>
       <section>{children}</section>

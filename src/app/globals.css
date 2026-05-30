@@ -1,38 +1,73 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f5f1;
-  --foreground: #1b1206;
-  --brand: #8a2d1f;
-  --brand-dark: #5c1d13;
-  --card: #fffdfa;
-  --muted: #efe8dc;
+  --background: #f7f6ff;
+  --foreground: #2c2c2a;
+  --brand: #534ab7;
+  --brand-dark: #4037a0;
+  --accent: #1d9e75;
+  --card: #ffffff;
+  --muted: #ece9ff;
+  --line: #ddd8ff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Trebuchet MS", "Segoe UI", sans-serif;
-  --font-serif: "Garamond", "Times New Roman", serif;
+  --font-sans: var(--font-inter), "Segoe UI", sans-serif;
+  --font-serif: var(--font-inter), "Segoe UI", sans-serif;
 }
 
 body {
   min-height: 100vh;
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(83, 74, 183, 0.16), transparent 22%),
+    radial-gradient(circle at top right, rgba(29, 158, 117, 0.12), transparent 20%),
+    var(--background);
   color: var(--foreground);
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-family: var(--font-inter), "Segoe UI", sans-serif;
 }
 
 .brand-gradient {
   background:
-    radial-gradient(circle at 20% 20%, #f5d9b8 0%, transparent 30%),
-    radial-gradient(circle at 80% 0%, #ffd9be 0%, transparent 25%),
-    linear-gradient(130deg, #fff6e7, #f3ece4);
+    radial-gradient(circle at 12% 18%, rgba(83, 74, 183, 0.24) 0%, transparent 28%),
+    radial-gradient(circle at 82% 8%, rgba(29, 158, 117, 0.18) 0%, transparent 24%),
+    linear-gradient(135deg, #ffffff, #f1efff);
 }
 
 .section-shell {
-  border: 1px solid #e8ddd0;
+  border: 1px solid var(--line);
   background: var(--card);
-  border-radius: 1rem;
-  box-shadow: 0 5px 25px rgba(78, 41, 20, 0.07);
+  border-radius: 1.25rem;
+  box-shadow: 0 18px 44px rgba(83, 74, 183, 0.08);
+}
+
+.page-shell {
+  position: relative;
+}
+
+.purple-grid {
+  background-image:
+    linear-gradient(rgba(83, 74, 183, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(83, 74, 183, 0.04) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+.soft-ring {
+  box-shadow:
+    0 0 0 1px rgba(83, 74, 183, 0.08),
+    0 16px 44px rgba(83, 74, 183, 0.12);
+}
+
+input,
+select,
+textarea {
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(83, 74, 183, 0.5);
+  box-shadow: 0 0 0 3px rgba(83, 74, 183, 0.12);
 }

@@ -1,12 +1,13 @@
 # Vinaroda
 
 Vinaroda is a full-stack Next.js e-commerce platform with:
-- Storefront (home, shop, filters, product details)
-- Customer features (auth, cart, checkout, wishlist, order history)
-- Admin portal (KPIs, categories, products, order status pipeline)
+- Storefront (Amazon-style home, search, shop filters, product details, support)
+- Customer features (auth, cart, checkout, account hub, wishlist, order history, tracking)
+- Admin portal (KPIs, categories, products, suppliers, imports, order status pipeline)
 - PostgreSQL + Prisma data layer
 - NextAuth credentials authentication with admin/customer roles
 - Local image uploads via multipart API (`/api/upload`)
+- Dropshipping workflow fields for supplier assignment, markup control, fulfillment, and tracking
 
 ## Stack
 - Next.js App Router + TypeScript
