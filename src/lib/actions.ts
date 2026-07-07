@@ -1,7 +1,5 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import bcrypt from "bcryptjs";
 import {
   OrderStatus,
@@ -25,6 +23,7 @@ import {
 import { isDatabaseConnectionError } from "@/lib/database";
 import { importCuratedDummyJsonCatalog } from "@/lib/dummyjson";
 import { prisma } from "@/lib/prisma";
+import { sanitizeFilename, uploadImageFile } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
 
 async function requireSession() {
@@ -224,14 +223,8 @@ const MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_PRODUCT_GALLERY_BYTES = 20 * 1024 * 1024;
 
 async function saveImageFromFile(file: File) {
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
-  const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9_.-]/g, "")}`;
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  await mkdir(uploadsDir, { recursive: true });
-  const fullPath = path.join(uploadsDir, safeName);
-  await writeFile(fullPath, buffer);
-  return `/uploads/${safeName}`;
+  const safeName = `${Date.now()}-${sanitizeFilename(file.name)}`;
+  return uploadImageFile(file, safeName);
 }
 
 function getUploadedFiles(formData: FormData) {

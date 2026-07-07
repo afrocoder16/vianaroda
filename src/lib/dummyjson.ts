@@ -1,7 +1,7 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { PrismaClient, Review } from "@prisma/client";
 import { getShippingLabel, roundMoney } from "@/lib/commerce";
+import { uploadImageBuffer } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
 
 export type StorefrontCategorySlug =
@@ -422,17 +422,11 @@ async function downloadDummyJsonImageSet(
   product: CuratedDummyJsonProduct,
   fetchImpl: typeof fetch,
 ) {
-  const folderName = product.slug;
-  const relativeDirectory = path.posix.join(
-    "uploads",
+  const objectDirectory = path.posix.join(
     "imports",
     "dummyjson",
-    folderName,
+    product.slug,
   );
-  const absoluteDirectory = path.join(process.cwd(), "public", relativeDirectory);
-
-  await rm(absoluteDirectory, { recursive: true, force: true });
-  await mkdir(absoluteDirectory, { recursive: true });
 
   const imagePaths: string[] = [];
 
@@ -443,19 +437,23 @@ async function downloadDummyJsonImageSet(
         continue;
       }
 
-      const extension = inferImageExtension(url, response.headers.get("content-type"));
+      const contentType = response.headers.get("content-type");
+      const extension = inferImageExtension(url, contentType);
       const filename = `${String(index + 1).padStart(2, "0")}${extension}`;
-      const absolutePath = path.join(absoluteDirectory, filename);
+      const objectPath = path.posix.join(objectDirectory, filename);
       const buffer = Buffer.from(await response.arrayBuffer());
-      await writeFile(absolutePath, buffer);
-      imagePaths.push(`/${path.posix.join(relativeDirectory, filename)}`);
+      const storedPath = await uploadImageBuffer(
+        buffer,
+        objectPath,
+        contentType ?? undefined,
+      );
+      imagePaths.push(storedPath);
     } catch {
       continue;
     }
   }
 
   if (imagePaths.length < 3) {
-    await rm(absoluteDirectory, { recursive: true, force: true });
     return null;
   }
 

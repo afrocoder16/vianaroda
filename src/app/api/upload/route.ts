@@ -1,9 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
+import { sanitizeFilename, uploadImageFile } from "@/lib/storage";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -17,10 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing image" }, { status: 400 });
   }
 
-  const bytes = await file.arrayBuffer();
-  const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9_.-]/g, "")}`;
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  await mkdir(uploadsDir, { recursive: true });
-  await writeFile(path.join(uploadsDir, safeName), Buffer.from(bytes));
-  return NextResponse.json({ path: `/uploads/${safeName}` });
+  const safeName = `${Date.now()}-${sanitizeFilename(file.name)}`;
+  const path = await uploadImageFile(file, safeName);
+  return NextResponse.json({ path });
 }
