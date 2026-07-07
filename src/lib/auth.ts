@@ -4,6 +4,18 @@ import { type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 
+const authSecret = process.env.NEXTAUTH_SECRET;
+
+if (
+  process.env.NODE_ENV === "production" &&
+  (!authSecret || authSecret === "replace-with-a-long-random-secret")
+) {
+  throw new Error(
+    "NEXTAUTH_SECRET is missing or still set to the placeholder value. " +
+      "Set a strong, unique secret in the production environment before starting the app.",
+  );
+}
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -65,5 +77,5 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: authSecret,
 };

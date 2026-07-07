@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DatabaseUnavailablePanel } from "@/components/database-unavailable-panel";
 import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@/lib/actions";
 import { brand, getCategoryCopy } from "@/lib/brand";
 import { formatPrice } from "@/lib/commerce";
+import { isDatabaseConnectionError } from "@/lib/database";
 import { prisma } from "@/lib/prisma";
 
 export default async function ProductDetailPage({
@@ -17,33 +19,46 @@ export default async function ProductDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = await prisma.product.findUnique({
-    where: { slug },
-    include: {
-      images: { orderBy: { sortOrder: "asc" } },
-      category: true,
-      supplier: true,
-      reviews: {
-        orderBy: [{ rating: "desc" }, { createdAt: "desc" }],
-        take: 4,
+  let product;
+  let relatedProducts;
+
+  try {
+    product = await prisma.product.findUnique({
+      where: { slug },
+      include: {
+        images: { orderBy: { sortOrder: "asc" } },
+        category: true,
+        supplier: true,
+        reviews: {
+          orderBy: [{ rating: "desc" }, { createdAt: "desc" }],
+          take: 4,
+        },
       },
-    },
-  });
+    });
 
-  if (!product || !product.isActive) {
-    notFound();
+    if (!product || !product.isActive) {
+      notFound();
+    }
+
+    relatedProducts = await prisma.product.findMany({
+      where: {
+        isActive: true,
+        categoryId: product.categoryId,
+        id: { not: product.id },
+      },
+      include: { images: true, category: true },
+      orderBy: [{ isTrending: "desc" }, { unitsSold: "desc" }],
+      take: 4,
+    });
+  } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return (
+        <DatabaseUnavailablePanel description="Product pages are unavailable until PostgreSQL is reachable and the sample catalog is loaded." />
+      );
+    }
+
+    throw error;
   }
-
-  const relatedProducts = await prisma.product.findMany({
-    where: {
-      isActive: true,
-      categoryId: product.categoryId,
-      id: { not: product.id },
-    },
-    include: { images: true, category: true },
-    orderBy: [{ isTrending: "desc" }, { unitsSold: "desc" }],
-    take: 4,
-  });
 
   const images =
     product.images.length > 0
@@ -186,8 +201,8 @@ export default async function ProductDetailPage({
               </form>
             </div>
 
-            <p className="rounded-2xl bg-[#231f4f] px-4 py-3 text-sm text-[#ece9ff]">
-              Your payment is encrypted and secure. We never store card details.
+            <p className="rounded-2xl bg-amber-100 px-4 py-3 text-sm text-amber-900">
+              Demo store &mdash; checkout places a pending order and collects no payment.
             </p>
           </div>
 

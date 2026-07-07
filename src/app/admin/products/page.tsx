@@ -17,7 +17,12 @@ export default async function AdminProductsPage({
   const hasInvalidInputError = params.error === "invalid-product-input";
   const [products, categories, suppliers] = await Promise.all([
     prisma.product.findMany({
-      include: { category: true, images: true, supplier: true },
+      include: {
+        category: true,
+        images: true,
+        supplier: true,
+        _count: { select: { orderItems: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
@@ -36,6 +41,10 @@ export default async function AdminProductsPage({
           details, and keep uploads at 5 images max, 5 MB each, 20 MB total.
         </p>
       ) : null}
+      <p className="text-sm text-[#5f5b74]">
+        Products with existing order history are archived when deleted so past
+        orders remain intact.
+      </p>
       <form
         action={createProductAction}
         className="section-shell grid gap-3 p-4"
@@ -285,7 +294,9 @@ export default async function AdminProductsPage({
                     </form>
                     <form action={deleteProductAction}>
                       <input type="hidden" name="id" value={product.id} />
-                      <button className="text-xs text-red-700">Delete</button>
+                      <button className="text-xs text-red-700">
+                        {product._count.orderItems > 0 ? "Archive" : "Delete"}
+                      </button>
                     </form>
                   </div>
                 </td>

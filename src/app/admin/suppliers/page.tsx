@@ -1,6 +1,7 @@
 import {
   createSupplierAction,
   deleteSupplierAction,
+  importCuratedDummyJsonCatalogAction,
   importSupplierProductsAction,
 } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
@@ -31,6 +32,15 @@ export default async function AdminSuppliersPage({
 }) {
   const params = await searchParams;
   const error = typeof params.error === "string" ? params.error : "";
+  const imported = params.imported === "1";
+  const createdCount =
+    typeof params.created === "string" ? Number(params.created) || 0 : 0;
+  const updatedCount =
+    typeof params.updated === "string" ? Number(params.updated) || 0 : 0;
+  const skippedCount =
+    typeof params.skipped === "string" ? Number(params.skipped) || 0 : 0;
+  const selectedCount =
+    typeof params.selected === "string" ? Number(params.selected) || 0 : 0;
   const [suppliers, categories] = await Promise.all([
     prisma.supplier.findMany({
       include: { _count: { select: { products: true } } },
@@ -44,7 +54,15 @@ export default async function AdminSuppliersPage({
       <h1 className="font-serif text-3xl font-bold">Suppliers & Imports</h1>
       {error ? (
         <p className="rounded-md bg-red-100 px-3 py-2 text-sm text-red-900">
-          Supplier input or import JSON was invalid.
+          {error === "dummyjson-import-failed"
+            ? "The curated DummyJSON import failed. Check the network connection or source feed and try again."
+            : "Supplier input or import JSON was invalid."}
+        </p>
+      ) : null}
+      {imported ? (
+        <p className="rounded-md bg-emerald-100 px-3 py-2 text-sm text-emerald-950">
+          Curated DummyJSON import complete. Selected {selectedCount}, created{" "}
+          {createdCount}, updated {updatedCount}, skipped {skippedCount}.
         </p>
       ) : null}
 
@@ -68,40 +86,67 @@ export default async function AdminSuppliersPage({
           </button>
         </form>
 
-        <form action={importSupplierProductsAction} className="section-shell grid gap-3 p-4">
-          <h2 className="font-serif text-2xl font-bold">Import Products</h2>
-          <div className="grid gap-2 md:grid-cols-2">
-            <select name="supplierId" required defaultValue="" className="rounded-md border px-3 py-2">
-              <option value="" disabled>
-                Select supplier
-              </option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>
-                  {supplier.name}
+        <div className="grid gap-4">
+          <form
+            action={importCuratedDummyJsonCatalogAction}
+            className="section-shell grid gap-3 p-4"
+          >
+            <div className="space-y-2">
+              <h2 className="font-serif text-2xl font-bold">
+                Curated DummyJSON Catalog
+              </h2>
+              <p className="text-sm text-[#475569]">
+                Imports a curated 30-50 product catalog across Women, Men, Home,
+                Beauty, and Electronics. Only products with 3-5 source images,
+                strong ratings, and acceptable shipping windows are included.
+              </p>
+            </div>
+            <div className="grid gap-2 rounded-2xl bg-[#f8f8ff] p-4 text-sm text-[#475569] md:grid-cols-2">
+              <p>Target: 40 curated products with a 30 product minimum.</p>
+              <p>Images: downloaded locally into your own uploads folder.</p>
+              <p>Behavior: reruns update existing DummyJSON imports by SKU.</p>
+              <p>Result: home, shop, and product galleries fill out automatically.</p>
+            </div>
+            <button className="w-fit rounded-md bg-[var(--brand)] px-4 py-2 text-white">
+              Import curated DummyJSON catalog
+            </button>
+          </form>
+
+          <form action={importSupplierProductsAction} className="section-shell grid gap-3 p-4">
+            <h2 className="font-serif text-2xl font-bold">Manual Supplier Import</h2>
+            <div className="grid gap-2 md:grid-cols-2">
+              <select name="supplierId" required defaultValue="" className="rounded-md border px-3 py-2">
+                <option value="" disabled>
+                  Select supplier
                 </option>
-              ))}
-            </select>
-            <select name="categoryId" required defaultValue="" className="rounded-md border px-3 py-2">
-              <option value="" disabled>
-                Select category
-              </option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+              <select name="categoryId" required defaultValue="" className="rounded-md border px-3 py-2">
+                <option value="" disabled>
+                  Select category
                 </option>
-              ))}
-            </select>
-          </div>
-          <textarea
-            name="payload"
-            rows={14}
-            defaultValue={importTemplate}
-            className="rounded-md border px-3 py-2 font-mono text-xs"
-          />
-          <button className="w-fit rounded-md bg-[#0f172a] px-4 py-2 text-white">
-            Import supplier products
-          </button>
-        </form>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <textarea
+              name="payload"
+              rows={14}
+              defaultValue={importTemplate}
+              className="rounded-md border px-3 py-2 font-mono text-xs"
+            />
+            <button className="w-fit rounded-md bg-[#0f172a] px-4 py-2 text-white">
+              Import supplier products
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="section-shell overflow-hidden">

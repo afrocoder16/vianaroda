@@ -143,7 +143,9 @@ export default async function CheckoutPage({
             </div>
 
             <div className="space-y-3">
-              <p className="text-sm font-semibold">Payment Methods</p>
+              <p className="text-sm font-semibold">
+                Payment Method <span className="font-normal text-[#8b87a3]">(demo &mdash; not charged)</span>
+              </p>
               <div className="grid gap-3 md:grid-cols-2">
                 {Object.values(PaymentMethod).map((method) => (
                   <label
@@ -166,12 +168,13 @@ export default async function CheckoutPage({
               </div>
             </div>
 
-            <p className="rounded-2xl bg-[#231f4f] px-4 py-3 text-sm text-[#ece9ff]">
-              Your payment is encrypted and secure. We never store card details.
+            <p className="rounded-2xl bg-amber-100 px-4 py-3 text-sm text-amber-900">
+              <strong>Demo checkout.</strong> No payment is collected and no card
+              is charged. Your order is recorded as a pending demo order only.
             </p>
 
             <button className="mt-2 rounded-full bg-[var(--brand)] px-4 py-3 font-semibold text-white">
-              Place My Order
+              Place Demo Order
             </button>
           </form>
         </section>

@@ -22,6 +22,8 @@ import {
   getShippingLabel,
   roundMoney,
 } from "@/lib/commerce";
+import { isDatabaseConnectionError } from "@/lib/database";
+import { importCuratedDummyJsonCatalog } from "@/lib/dummyjson";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
 
@@ -72,14 +74,20 @@ export async function registerUserAction(formData: FormData) {
   const schema = z.object({
     name: z.string().min(2),
     email: z.string().email(),
-    password: z.string().min(6),
+    password: z.string().min(8),
   });
 
-  const parsed = schema.parse({
-    name: formData.get("name"),
-    email: formData.get("email"),
-    password: formData.get("password"),
+  const result = schema.safeParse({
+    name: String(formData.get("name") ?? "").trim(),
+    email: String(formData.get("email") ?? "").trim(),
+    password: String(formData.get("password") ?? ""),
   });
+
+  if (!result.success) {
+    redirect("/signup?error=InvalidInput");
+  }
+
+  const parsed = result.data;
 
   const exists = await prisma.user.findUnique({
     where: { email: parsed.email.toLowerCase() },
@@ -344,9 +352,39 @@ export async function deleteProductAction(formData: FormData) {
   if (!id) {
     return;
   }
-  await prisma.product.delete({ where: { id } });
+
+  const product = await prisma.product.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      slug: true,
+      orderItems: {
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (!product) {
+    return;
+  }
+
+  if (product.orderItems.length > 0) {
+    await prisma.product.update({
+      where: { id },
+      data: {
+        isActive: false,
+        stock: 0,
+      },
+    });
+  } else {
+    await prisma.product.delete({ where: { id } });
+  }
+
   revalidatePath("/admin/products");
   revalidatePath("/shop");
+  revalidatePath("/");
+  revalidatePath(`/product/${product.slug}`);
 }
 
 export async function updateProductAction(formData: FormData) {
@@ -723,8 +761,11 @@ export async function checkoutAction(formData: FormData) {
   const createdOrder = await prisma.order.create({
     data: {
       userId: session.user.id,
-      status: OrderStatus.PAID,
-      supplierOrderStatus: SupplierOrderStatus.FORWARDED,
+      // Demo mode: no payment is collected, so the order is recorded as
+      // PENDING (unpaid) rather than PAID. Wire up a real payment provider
+      // (e.g. Stripe) and only set PAID after a confirmed charge.
+      status: OrderStatus.PENDING,
+      supplierOrderStatus: SupplierOrderStatus.DRAFT,
       paymentMethod: parsed.data.paymentMethod,
       subtotal: totals.subtotal,
       shipping: totals.shipping,
@@ -742,7 +783,7 @@ export async function checkoutAction(formData: FormData) {
         supplierNames.length > 0 ? supplierNames.join(", ") : "Unassigned supplier",
       supplierReference: `PO-${Date.now().toString().slice(-8)}`,
       fulfillmentNotes:
-        "Supplier order forwarded automatically into the manual fulfillment queue.",
+        "Demo order placed without payment. Awaiting payment integration before fulfillment.",
       estimatedDelivery,
       items: {
         create: cart.items.map((item) => ({
@@ -870,30 +911,38 @@ export async function importSupplierProductsAction(formData: FormData) {
     redirect("/admin/suppliers?error=invalid-import");
   }
 
-  let entries: Array<{
-    title: string;
-    description: string;
-    sku: string;
-    supplierSku?: string;
-    supplierCost: number;
-    markupPercent?: number;
-    stock?: number;
-    compareAtPrice?: number;
-    rating?: number;
-    shippingLeadMin?: number;
-    shippingLeadMax?: number;
-    fastShippingEligible?: boolean;
-    isBestSeller?: boolean;
-    isTrending?: boolean;
-    variantSummary?: string;
-    image?: string;
-  }>;
+  const importEntrySchema = z.object({
+    title: z.string().min(3),
+    description: z.string().min(10),
+    sku: z.string().min(3),
+    supplierSku: z.string().optional(),
+    supplierCost: z.number().nonnegative(),
+    markupPercent: z.number().min(0).max(500).optional(),
+    stock: z.number().int().nonnegative().optional(),
+    compareAtPrice: z.number().nonnegative().optional(),
+    rating: z.number().min(1).max(5).optional(),
+    shippingLeadMin: z.number().int().min(1).max(30).optional(),
+    shippingLeadMax: z.number().int().min(1).max(45).optional(),
+    fastShippingEligible: z.boolean().optional(),
+    isBestSeller: z.boolean().optional(),
+    isTrending: z.boolean().optional(),
+    variantSummary: z.string().optional(),
+    image: z.string().optional(),
+  });
+  const importPayloadSchema = z.array(importEntrySchema).min(1).max(200);
 
+  let rawEntries: unknown;
   try {
-    entries = JSON.parse(payload) as typeof entries;
+    rawEntries = JSON.parse(payload);
   } catch {
     redirect("/admin/suppliers?error=invalid-import-json");
   }
+
+  const parsedEntries = importPayloadSchema.safeParse(rawEntries);
+  if (!parsedEntries.success) {
+    redirect("/admin/suppliers?error=invalid-import");
+  }
+  const entries = parsedEntries.data;
 
   await prisma.product.createMany({
     data: entries.map((entry, index) => {
@@ -953,6 +1002,24 @@ export async function importSupplierProductsAction(formData: FormData) {
   revalidatePath("/admin/products");
   revalidatePath("/admin/suppliers");
   revalidatePath("/shop");
+}
+
+export async function importCuratedDummyJsonCatalogAction() {
+  await requireAdmin();
+
+  try {
+    const result = await importCuratedDummyJsonCatalog({ prisma });
+    revalidatePath("/admin/products");
+    revalidatePath("/admin/suppliers");
+    revalidatePath("/shop");
+    revalidatePath("/");
+
+    redirect(
+      `/admin/suppliers?imported=1&created=${result.created}&updated=${result.updated}&skipped=${result.skipped}&selected=${result.selected}`,
+    );
+  } catch {
+    redirect("/admin/suppliers?error=dummyjson-import-failed");
+  }
 }
 
 export async function uploadImageAction(formData: FormData) {
@@ -1030,21 +1097,34 @@ export async function getStorefrontProducts(params: {
     orderBy = { createdAt: "desc" };
   }
 
-  const [items, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      include: { images: true, category: true },
-      orderBy,
-      skip: (page - 1) * perPage,
-      take: perPage,
-    }),
-    prisma.product.count({ where }),
-  ]);
+  try {
+    const [items, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: { images: true, category: true },
+        orderBy,
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      prisma.product.count({ where }),
+    ]);
 
-  return {
-    items,
-    total,
-    page,
-    pages: Math.max(1, Math.ceil(total / perPage)),
-  };
+    return {
+      items,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage)),
+    };
+  } catch (error) {
+    if (!isDatabaseConnectionError(error)) {
+      throw error;
+    }
+
+    return {
+      items: [],
+      total: 0,
+      page,
+      pages: 1,
+    };
+  }
 }

@@ -1,55 +1,75 @@
 import Link from "next/link";
 import { ProductCard } from "@/components/product-card";
+import { DatabaseUnavailablePanel } from "@/components/database-unavailable-panel";
 import { brand, getCategoryCopy } from "@/lib/brand";
 import { formatPrice } from "@/lib/commerce";
+import { isDatabaseConnectionError } from "@/lib/database";
 import { prisma } from "@/lib/prisma";
 import { ProductImageFrame } from "@/components/product-image-frame";
 
 export default async function HomePage() {
-  const [
-    categories,
-    bestSellers,
-    trendingProducts,
-    newArrivals,
-    flashDeals,
-    underTwentyFive,
-  ] = await Promise.all([
-    prisma.category.findMany({
-      include: { _count: { select: { products: true } } },
-      orderBy: { name: "asc" },
-      take: 8,
-    }),
-    prisma.product.findMany({
-      where: { isActive: true },
-      include: { images: true, category: true },
-      orderBy: [{ isBestSeller: "desc" }, { unitsSold: "desc" }],
-      take: 8,
-    }),
-    prisma.product.findMany({
-      where: { isActive: true },
-      include: { images: true, category: true },
-      orderBy: [{ isTrending: "desc" }, { createdAt: "desc" }],
-      take: 8,
-    }),
-    prisma.product.findMany({
-      where: { isActive: true },
-      include: { images: true, category: true },
-      orderBy: { createdAt: "desc" },
-      take: 4,
-    }),
-    prisma.product.findMany({
-      where: { isActive: true, compareAtPrice: { not: null } },
-      include: { images: true, category: true },
-      orderBy: [{ fastShippingEligible: "desc" }, { createdAt: "desc" }],
-      take: 4,
-    }),
-    prisma.product.findMany({
-      where: { isActive: true, price: { lte: 25 } },
-      include: { images: true, category: true },
-      orderBy: [{ createdAt: "desc" }],
-      take: 4,
-    }),
-  ]);
+  let categories;
+  let bestSellers;
+  let trendingProducts;
+  let newArrivals;
+  let flashDeals;
+  let underTwentyFive;
+
+  try {
+    [
+      categories,
+      bestSellers,
+      trendingProducts,
+      newArrivals,
+      flashDeals,
+      underTwentyFive,
+    ] = await Promise.all([
+      prisma.category.findMany({
+        include: { _count: { select: { products: true } } },
+        orderBy: { name: "asc" },
+        take: 8,
+      }),
+      prisma.product.findMany({
+        where: { isActive: true },
+        include: { images: true, category: true },
+        orderBy: [{ isBestSeller: "desc" }, { unitsSold: "desc" }],
+        take: 8,
+      }),
+      prisma.product.findMany({
+        where: { isActive: true },
+        include: { images: true, category: true },
+        orderBy: [{ isTrending: "desc" }, { createdAt: "desc" }],
+        take: 8,
+      }),
+      prisma.product.findMany({
+        where: { isActive: true },
+        include: { images: true, category: true },
+        orderBy: { createdAt: "desc" },
+        take: 4,
+      }),
+      prisma.product.findMany({
+        where: { isActive: true, compareAtPrice: { not: null } },
+        include: { images: true, category: true },
+        orderBy: [{ fastShippingEligible: "desc" }, { createdAt: "desc" }],
+        take: 4,
+      }),
+      prisma.product.findMany({
+        where: { isActive: true, price: { lte: 25 } },
+        include: { images: true, category: true },
+        orderBy: [{ createdAt: "desc" }],
+        take: 4,
+      }),
+    ]);
+  } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return (
+        <DatabaseUnavailablePanel description="The homepage could not load because PostgreSQL is not reachable at localhost:5432." />
+      );
+    }
+
+    throw error;
+  }
+
   const spotlightProduct = bestSellers[0];
 
   return (

@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { DatabaseUnavailablePanel } from "@/components/database-unavailable-panel";
 import { ProductCard } from "@/components/product-card";
 import { brand } from "@/lib/brand";
 import { getStorefrontProducts } from "@/lib/actions";
+import { isDatabaseConnectionError } from "@/lib/database";
 import { prisma } from "@/lib/prisma";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -23,19 +25,32 @@ export default async function ShopPage({
   const min = Number(typeof params.min === "string" ? params.min : 0) || 0;
   const max = Number(typeof params.max === "string" ? params.max : 10000) || 10000;
 
-  const [catalog, categories] = await Promise.all([
-    getStorefrontProducts({
-      query: q,
-      category,
-      sort,
-      page,
-      min,
-      max,
-      rating,
-      shipping,
-    }),
-    prisma.category.findMany({ orderBy: { name: "asc" } }),
-  ]);
+  let catalog;
+  let categories;
+
+  try {
+    [catalog, categories] = await Promise.all([
+      getStorefrontProducts({
+        query: q,
+        category,
+        sort,
+        page,
+        min,
+        max,
+        rating,
+        shipping,
+      }),
+      prisma.category.findMany({ orderBy: { name: "asc" } }),
+    ]);
+  } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return (
+        <DatabaseUnavailablePanel description="The shop cannot load until PostgreSQL is running and seeded." />
+      );
+    }
+
+    throw error;
+  }
 
   const baseParams = {
     q,
